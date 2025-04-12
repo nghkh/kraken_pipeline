@@ -1,106 +1,137 @@
-# Nextflow Kraken2 và Bracken Workflow
+# Kraken Pipeline
 
-Workflow phân tích phân loại vi khuẩn sử dụng Kraken2 và Bracken với Nextflow.
+A Nextflow pipeline for metagenomic analysis using Kraken2 and Bracken for taxonomic classification and abundance estimation.
 
-## Tổng quan
+## Overview
 
-Pipeline này thực hiện:
-1. Phân loại các reads với Kraken2
-2. Phân tích ước lượng abundance với Bracken
-3. Tạo báo cáo tổng hợp
+This pipeline processes paired-end metagenomic sequencing data through the following steps:
 
-## Yêu cầu
+1. **Kraken2**: Taxonomic classification of reads using a reference database
+2. **Bracken**: Abundance estimation at multiple taxonomic levels
+3. **Krona**: Visualization of taxonomic distributions
+4. **Diversity Analysis**: Calculation of alpha and beta diversity metrics
 
-- Nextflow (≥ 21.10.0)
-- Kraken2
-- Bracken
-- Database Kraken2 đã được tạo sẵn
+## Requirements
 
-## Cách sử dụng
+- [Nextflow](https://www.nextflow.io/) (v20.10.0 or later)
+- [Docker](https://www.docker.com/) (optional but recommended)
+- [Kraken2](https://ccb.jhu.edu/software/kraken2/) database
 
-### 1. Chuẩn bị thư mục chứa raw reads
+## Installation
 
-Chuẩn bị một thư mục chứa tất cả các file raw reads (paired-end) của các mẫu. File reads phải có định dạng tên như sau:
-- `sample_name_R1.fastq.gz` (forward reads)
-- `sample_name_R2.fastq.gz` (reverse reads)
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/nghkh/kraken_pipeline.git
+   cd kraken_pipeline
+   ```
 
-Trong đó:
-- `sample_name`: Tên mẫu, sẽ được sử dụng làm tên thư mục con trong kết quả đầu ra.
+2. Install Nextflow (if not already installed):
+   ```bash
+   curl -s https://get.nextflow.io | bash
+   ```
 
-### 2. Chạy workflow
+3. Set up a Kraken2 database:
+   ```bash
+   ./bin/setup_krakendb.sh [database_directory]
+   ```
 
-Chạy với thư mục reads và database đã có sẵn:
-
-```bash
-nextflow run main.nf --reads_dir /đường/dẫn/đến/thư_mục_reads --krakendb /đường/dẫn/đến/database
-```
-
-Hoặc sử dụng file cấu hình có sẵn:
-
-```bash
-nextflow run main.nf -c params/kraken_params.config
-```
-
-Bạn có thể điều chỉnh pattern để tìm đúng kiểu file read của bạn:
+## Usage
 
 ```bash
-nextflow run main.nf --reads_dir /đường/dẫn/reads --read_pattern "*_{1,2}.fastq.gz"
+nextflow run main.nf --reads_dir [path/to/reads] --outdir [path/to/output] --krakendb [path/to/krakendb]
 ```
 
-Bạn có thể điều chỉnh các tham số khác:
+### Input Data
+
+The pipeline expects paired-end sequencing reads in gzipped FASTQ format. By default, it looks for files matching the pattern `*_{1,2}*.{fq,fastq}.gz` in the specified `reads_dir`.
+
+### Example
 
 ```bash
-nextflow run main.nf --reads_dir /đường/dẫn/reads --krakendb /đường/dẫn/db --outdir kết_quả --kraken_threads 16 --bracken_level G
+nextflow run main.nf --reads_dir /path/to/reads --outdir results --krakendb /path/to/krakendb
 ```
 
-### 3. Tiếp tục chạy từ lần chạy trước
+## Parameters
 
-Nếu quá trình chạy bị gián đoạn hoặc có lỗi, bạn có thể sử dụng tham số `--resume` để tiếp tục từ vị trí bị dừng:
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `--reads_dir` | Directory containing raw reads | `$baseDir/reads` |
+| `--outdir` | Output directory (required) | `null` |
+| `--krakendb` | Path to Kraken2 database | `$baseDir/krakendb` |
+| `--kraken_threads` | Number of threads for Kraken2 | `8` |
+| `--bracken_threads` | Number of threads for Bracken | `8` |
+| `--bracken_threshold` | Minimum number of reads required for a taxonomic classification | `10` |
+| `--bracken_length` | Read length used for Bracken | `150` |
+| `--bracken_level` | Taxonomic levels for Bracken analysis | `["P","C","O","F","G","S"]` |
+| `--read_pattern` | File pattern to match read files | `*_{1,2}*.{fq,fastq}.gz` |
+| `--enable_docker` | Enable Docker support | `true` |
+| `--container_kraken2` | Kraken2 Docker container | `quay.io/biocontainers/kraken2:2.1.2--pl5321h9f5acd7_2` |
+| `--container_bracken` | Bracken Docker container | `quay.io/biocontainers/bracken:2.7--py39hc16433a_0` |
 
-```bash
-nextflow run main.nf --reads_dir /đường/dẫn/đến/thư_mục_reads --krakendb /đường/dẫn/đến/database --outdir /đường/dẫn/đến/kết_quả --resume
-```
+## Output
 
-Khi sử dụng tham số `--resume`, Nextflow sẽ:
-- Bỏ qua các bước đã hoàn thành thành công
-- Chỉ chạy lại những bước bị lỗi hoặc chưa được thực hiện
-- Sử dụng lại kết quả tạm thời đã lưu trong thư mục `work/`
-
-### 4. Các tham số chính
-
-| Tham số | Mô tả | Giá trị mặc định |
-|---------|-------|-----------------|
-| `--reads_dir` | Thư mục chứa tất cả file reads | `$baseDir/reads` |
-| `--read_pattern` | Pattern để tìm file reads | `*_R{1,2}*.fastq.gz` |
-| `--krakendb` | Đường dẫn đến database Kraken2 | `/path/to/your/existing/krakendb` |
-| `--outdir` | Thư mục đầu ra | `$baseDir/results` |
-| `--kraken_threads` | Số luồng cho Kraken2 | `8` |
-| `--bracken_threads` | Số luồng cho Bracken | `8` |
-| `--bracken_threshold` | Ngưỡng phân loại | `10` |
-| `--bracken_length` | Độ dài read | `150` |
-| `--bracken_level` | Cấp độ phân loại (S=species, G=genus) | `S` |
-| `--resume` | Tiếp tục từ lần chạy trước đó | không bắt buộc |
-
-## Kết quả
-
-Kết quả được tổ chức theo cấu trúc:
+The pipeline generates the following output structure:
 
 ```
-results/
-├── sample1/
+[outdir]/
+├── [sample_id]/
 │   ├── kraken2/
-│   │   ├── sample1.kraken2.output
-│   │   └── sample1.kraken2.report
-│   └── bracken/
-│       ├── sample1.bracken.output
-│       └── sample1.bracken.report
-├── sample2/
-│   ├── kraken2/
-│   │   ├── sample2.kraken2.output
-│   │   └── sample2.kraken2.report
-│   └── bracken/
-│       ├── sample2.bracken.output
-│       └── sample2.bracken.report
-└── summary/
-    └── bracken_summary.txt
+│   │   ├── [sample_id].kraken2.output  # Raw Kraken2 output
+│   │   └── [sample_id].kraken2.report  # Kraken2 report
+│   ├── bracken/
+│   │   ├── [sample_id].bracken.[level].output  # Bracken abundance estimates
+│   │   └── [sample_id].bracken.[level].report  # Bracken report
+│   └── krona/
+│       └── [sample_id].krona.html  # Interactive Krona visualization
+├── summary/
+│   └── [level]/
+│       └── summary_[level].tsv  # Combined abundance table
+└── diversity/
+    ├── alpha/
+    │   └── alpha_diversity_[level].tsv  # Alpha diversity metrics
+    └── beta/
+        ├── beta_diversity_[level].tsv   # Beta diversity distance matrix
+        └── beta_diversity_[level].pdf   # PCoA plot visualization
 ```
+
+## Taxonomic Levels
+
+The pipeline supports the following taxonomic levels for Bracken analysis:
+- `P`: Phylum
+- `C`: Class
+- `O`: Order
+- `F`: Family
+- `G`: Genus
+- `S`: Species
+
+## Diversity Metrics
+
+### Alpha Diversity
+- Shannon index
+- Simpson index
+- Chao1 richness estimator
+
+### Beta Diversity
+- Bray-Curtis dissimilarity
+- Jaccard distance
+- UniFrac distance (if phylogenetic information is available)
+
+## Citations
+
+If you use this pipeline, please cite the following tools:
+
+- **Kraken2**: Wood, D.E., Lu, J. & Langmead, B. Improved metagenomic analysis with Kraken 2. Genome Biol 20, 257 (2019).
+- **Bracken**: Lu J, Breitwieser FP, Thielen P, Salzberg SL. Bracken: estimating species abundance in metagenomics data. PeerJ Computer Science 3:e104, 2017.
+- **Krona**: Ondov BD, Bergman NH, Phillippy AM. Interactive metagenomic visualization in a Web browser. BMC Bioinformatics. 2011 Sep 30;12:385.
+- **Nextflow**: Di Tommaso, P., Chatzou, M., Floden, E. W., Barja, P. P., Palumbo, E., & Notredame, C. (2017). Nextflow enables reproducible computational workflows. Nature Biotechnology, 35(4), 316-319.
+
+## License
+
+This pipeline is licensed under [MIT License](LICENSE).
+
+## Contact
+
+For questions or issues, please submit an issue on GitHub or contact:
+
+Email: khoa.bach01@gmail.com
+GitHub: https://github.com/nghkh/kraken_pipeline
