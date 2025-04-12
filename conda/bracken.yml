@@ -1,0 +1,7 @@
+name: bracken
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - bioconda::bracken=2.7
