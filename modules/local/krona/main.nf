@@ -13,6 +13,6 @@ process KRAKEN2KRONA {
     
     script:
     """
-    python ${baseDir}/bin/kreport2krona.py -r ${kraken_report} -o ${sample_id}.krona.txt --intermediate-ranks
+    python3 ${baseDir}/bin/kreport2krona.py -r ${kraken_report} -o ${sample_id}.krona.txt --intermediate-ranks
     """
 }
