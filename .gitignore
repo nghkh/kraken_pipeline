@@ -1,0 +1,23 @@
+# Nextflow specific files
+.nextflow.log
+.nextflow/
+work/
+
+# Common backup files
+*~
+*.swp
+*.bak
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Environment and cache files
+.env
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Result directories (optional, uncomment if needed)
+# results/
+# output/
