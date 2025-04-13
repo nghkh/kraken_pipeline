@@ -58,7 +58,7 @@ process ALPHA_DIVERSITY {
     container params.container_bracken
     
     input:
-    tuple val(level), path(bracken_reports)
+    tuple val(level), path(kraken_reports)
     
     output:
     path "alpha_diversity_${level}.tsv"
@@ -68,28 +68,28 @@ process ALPHA_DIVERSITY {
     # Create header for output file
     echo -e "Sample\tTaxonomic_Level\tShannon\tBerger_Parker\tSimpson\tInverse_Simpson\tFisher" > alpha_diversity_${level}.tsv
     
-    # Process each Bracken report
-    for report in ${bracken_reports}; do
+    # Process each Kraken2 report
+    for report in ${kraken_reports}; do
         sample=\$(basename \$report | cut -d. -f1)
         
-        # Calculate Shannon diversity
-        shannon=\$(python ${baseDir}/bin/alpha_diversity.py -f \$report -a Sh)
+        # Calculate Shannon diversity using Kraken2 report format
+        shannon=\$(python3 ${baseDir}/bin/alpha_diversity.py -f \$report -a Sh --type kreport --level ${level})
         shannon_value=\$(echo \$shannon | grep -oP "Shannon's diversity: \\K[0-9.]+" || echo "NA")
         
         # Calculate Berger-Parker diversity
-        bp=\$(python ${baseDir}/bin/alpha_diversity.py -f \$report -a BP)
+        bp=\$(python3 ${baseDir}/bin/alpha_diversity.py -f \$report -a BP --type kreport --level ${level})
         bp_value=\$(echo \$bp | grep -oP "Berger-parker's diversity: \\K[0-9.]+" || echo "NA")
         
         # Calculate Simpson diversity
-        simpson=\$(python ${baseDir}/bin/alpha_diversity.py -f \$report -a Si)
+        simpson=\$(python3 ${baseDir}/bin/alpha_diversity.py -f \$report -a Si --type kreport --level ${level})
         simpson_value=\$(echo \$simpson | grep -oP "Simpson's index of diversity: \\K[0-9.]+" || echo "NA")
         
         # Calculate Inverse Simpson diversity
-        inv_simpson=\$(python ${baseDir}/bin/alpha_diversity.py -f \$report -a ISi)
+        inv_simpson=\$(python3 ${baseDir}/bin/alpha_diversity.py -f \$report -a ISi --type kreport --level ${level})
         inv_simpson_value=\$(echo \$inv_simpson | grep -oP "Simpson's Reciprocal Index: \\K[0-9.]+" || echo "NA")
         
         # Calculate Fisher's alpha (may take longer)
-        fisher=\$(python ${baseDir}/bin/alpha_diversity.py -f \$report -a F || echo "Fisher's alpha...loading NA")
+        fisher=\$(python3 ${baseDir}/bin/alpha_diversity.py -f \$report -a F --type kreport --level ${level} || echo "Fisher's alpha...loading NA")
         fisher_value=\$(echo \$fisher | grep -oP "Fisher's index: \\K[0-9.]+" || echo "NA")
         
         # Add results to output file
@@ -106,14 +106,14 @@ process BETA_DIVERSITY {
     container params.container_bracken
     
     input:
-    tuple val(level), path(bracken_reports)
+    tuple val(level), path(kraken_reports)
     
     output:
     path "beta_diversity_${level}.tsv"
     
     script:
     """
-    # Run beta diversity analysis
-    python ${baseDir}/bin/beta_diversity.py --input ${bracken_reports} --type bracken --level ${level} > beta_diversity_${level}.tsv
+    # Run beta diversity analysis using Kraken2 reports
+    bash ${baseDir}/bin/run_beta_diversity.sh --input ${kraken_reports} --type kreport --level ${level} > beta_diversity_${level}.tsv
     """
 }

@@ -16,6 +16,9 @@ This pipeline processes paired-end metagenomic sequencing data through the follo
 - [Nextflow](https://www.nextflow.io/) (v20.10.0 or later)
 - [Docker](https://www.docker.com/) (optional but recommended)
 - [Kraken2](https://ccb.jhu.edu/software/kraken2/) database
+- [Python](https://www.python.org/) (v3.6 or later)
+- [pip](https://pip.pypa.io/en/stable/) (Python package installer)
+- [NumPy](https://numpy.org/) (required for diversity analysis)
 
 ## Installation
 

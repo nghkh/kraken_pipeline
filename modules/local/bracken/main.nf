@@ -3,7 +3,6 @@ process BRACKEN {
     tag "$sample_id - $level"
     publishDir "${params.outdir}/$sample_id/bracken", mode: 'copy'
     
-    // Thêm container cho Bracken
     container params.container_bracken
     
     input:

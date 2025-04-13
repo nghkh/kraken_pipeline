@@ -3,7 +3,6 @@ process KRAKEN2 {
     tag "$sample_id"
     publishDir "${params.outdir}/$sample_id/kraken2", mode: 'copy'
     
-    // Thêm container cho Kraken2
     container params.container_kraken2
     
     input:
