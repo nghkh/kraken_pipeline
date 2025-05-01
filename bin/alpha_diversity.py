@@ -6,12 +6,16 @@ def shannons_alpha(p):
 	# shannons = -sum(pi ln(pi))
 	h = []
 	for i in p:
-		h.append(i * math.log(i))
+		if i > 0:  # Avoid math domain error with log(0)
+			h.append(i * math.log(i))
 	print("Shannon's diversity: %s" %(-1 *sum(h)))
 	return (-1 *sum(h))
 
 def berger_parkers_alpha(p):
 	# bp is nmax/N which is equal to the max pi == max(p)
+	if not p:  # Check if p is empty
+		print("Berger-parker's diversity: NA (no valid data)")
+		return 0
 	print("Berger-parker's diversity: %s" %max(p))
 	return max(p)
 
@@ -23,97 +27,111 @@ def simpsons_alpha(D):
 
 def inverse_simpsons_alpha(D):
 	# simsons inverse = 1/D
+	if D == 0:  # Avoid division by zero
+		print("Simpson's Reciprocal Index: NA (D=0)")
+		return float('inf')
 	print("Simpson's Reciprocal Index: %s" %(1/D))
 	return 1/D
 
 def fishers_alpha():	
-	global np
-	import numpy as np
-	from scipy.optimize import fsolve
-	
-	fish = fsolve(eqn_output,1)
-	
-	# NOTE:
-	# if ratio of N/S > 20 then x > 0.99 (Poole,1974)
-	# x is almost always > 0.9 and never > 1.0 i.e. ~ 0.9 < x < 1.0
-	print("Fisher's index: %s" %fish[0])
-	return fish
+	try:
+		global np
+		import numpy as np
+		from scipy.optimize import fsolve
+		
+		# Check if we have enough data for meaningful calculation
+		if S_f <= 1 or N_f <= S_f:
+			print("Fisher's index: NA (insufficient data)")
+			return [0]
+			
+		fish = fsolve(eqn_output, 1)
+		
+		# NOTE:
+		# if ratio of N/S > 20 then x > 0.99 (Poole,1974)
+		# x is almost always > 0.9 and never > 1.0 i.e. ~ 0.9 < x < 1.0
+		print("Fisher's index: %s" %fish[0])
+		return fish
+	except ImportError:
+		print("Fisher's index: NA (numpy or scipy not available)")
+		return [0]
+	except:
+		print("Fisher's index: NA (calculation error)")
+		return [0]
 
 def eqn_output(a):
 	return a * np.log(1+N_f/a) - S_f
 
+def parse_bracken_file(filename):
+	"""Parse a Bracken file format"""
+	try:
+		f = open(filename)
+		header = f.readline()  # Skip header
+		n = []
+		
+		# Bracken output format has abundance info in the "new_est_reads" column
+		# Which is typically column 5 (0-indexed)
+		for line in f:
+			cols = line.strip().split('\t')
+			if len(cols) < 6:  # Standard Bracken output should have at least 6 columns
+				continue
+				
+			try:
+				# Get abundance from the "new_est_reads" column 
+				ind_abund = float(cols[5])
+				if ind_abund > 0:  # Only include non-zero values
+					n.append(ind_abund)
+			except (ValueError, IndexError):
+				continue
+				
+		f.close()
+		
+		# Check if we found any data
+		if not n:
+			print(f"Warning: No abundance values found in {filename}")
+			with open(filename, 'r') as debug_f:
+				print(f"File content preview: {debug_f.read(500)}")
+				
+		return n
+	except Exception as e:
+		print(f"Error parsing Bracken file: {str(e)}")
+		import traceback
+		traceback.print_exc()
+		return []
+
 # Main method
 def main():
 	# get arguments
-	parser = argparse.ArgumentParser(description='Calculate alpha diversity metrics.')
-	parser.add_argument('-f','--filename', dest='filename', help='Input file with abundance estimates (Bracken, Kraken, etc.)')
-	parser.add_argument('-a','--alpha', dest='value', default='Sh', type=str, 
-                       help='Type of alpha diversity to calculate: Sh (Shannon), BP (Berger-Parker), Si (Simpson), ISi (Inverse Simpson), F (Fisher). Default: Sh')
-	parser.add_argument('--type', dest='filetype', default='bracken', choices=['bracken', 'kreport', 'kreport2', 'krona'],
-                       help='Type of input file: bracken, kreport, kreport2, krona. Default: bracken')
-	parser.add_argument('--level', dest='level', default='all', choices=['all', 'D', 'P', 'C', 'O', 'F', 'G', 'S'],
-                       help='Taxonomic level to analyze. Default: all')
+	parser = argparse.ArgumentParser(description='Calculate alpha diversity from Bracken abundance estimation file.')
+	parser.add_argument('-f','--filename', dest='filename', required=True, 
+		help='Bracken output file')
+	parser.add_argument('-a','--alpha', dest='value', required=True, type=str,  
+		help='Single letter alpha diversity type (Sh, BP, Si, ISi, F)')
+	parser.add_argument('--type', dest='filetype', default='bracken', 
+		choices=['bracken'],
+		help='Type of input file: bracken. Default = bracken')
+	parser.add_argument('--level', dest='level', default='S',
+		help='Taxonomic level from which the Bracken file was created')
 	args = parser.parse_args()
 
-	f = open(args.filename)
-	# Skip header line if present
-	header = f.readline()
+	# Check if file exists
+	if not os.path.isfile(args.filename):
+		print(f"Error: File {args.filename} not found")
+		sys.exit(1)
 	
-	n = []  # Store abundances
-	tax_col = 0   # Column containing taxonomy info
-	count_col = 1  # Column containing count info
-	level_col = -1  # Column containing taxonomy level info
+	# Parse Bracken file
+	n = parse_bracken_file(args.filename)
 	
-	# Set columns based on file type
-	if args.filetype == 'bracken':
-		count_col = 5    # Abundance column in Bracken
-		tax_col = 0      # Taxonomy column in Bracken
-		level_col = 2    # Level column in Bracken
-	elif args.filetype in ['kreport', 'kreport2']:
-		count_col = 2    # Read count column in Kraken
-		level_col = 3    # Level column in Kraken
-		tax_col = 4      # Taxonomy column in Kraken
-	elif args.filetype == 'krona':
-		count_col = 0    # Count column in Krona
-		tax_col = 1      # Taxonomy column in Krona
-	
-	# Read the file
-	for line in f:
-		try:
-			parts = line.strip().split('\t')
-			if len(parts) <= max(count_col, tax_col, level_col if level_col != -1 else 0):
-				continue  # Skip if not enough columns
-			
-			# Skip lines with non-numeric count values or comments
-			if not parts[count_col].strip().isdigit() or parts[0].startswith('#'):
-				continue
-				
-			count = float(parts[count_col])
-			
-			# Only process entries matching the requested taxonomy level
-			if args.level != 'all' and level_col != -1:
-				if not parts[level_col].startswith(args.level):
-					continue
-			
-			if count > 0:
-				n.append(count)
-				
-		except ValueError as e:
-			sys.stderr.write(f"Warning: Could not convert count '{parts[count_col] if len(parts) > count_col else 'unknown'}' to float - skipping line\n")
-			continue
-		except Exception as e:
-			sys.stderr.write(f"Warning: Error processing line: {line.strip()} - {str(e)}\n")
-			continue
-	
-	f.close()
-	
-	# Ensure we have at least some valid data
-	if len(n) == 0:
-		print("No valid abundance data found for taxonomy level", args.level)
+	# Check if we have data
+	if not n:
+		print(f"Error: No valid abundance data found in {args.filename}")
 		sys.exit(1)
 	
 	# calculations
 	N = sum(n)  # total number of individuals
+	if N == 0:
+		print(f"Error: Total abundance is zero in {args.filename}")
+		sys.exit(1)
+		
 	S = len(n)  # total number of species
 	
 	# calculate all the pi's
@@ -121,29 +139,34 @@ def main():
 	D = 0
 	for i in n:  # go through each species
 		if i != 0:  # there should not be any zeros
-			p.append(i/N)  # pi is the ni/N
+			pi = i/N  # pi is the ni/N
+			p.append(pi)
 			D += i*(i-1)
 	
-	D = D/(N*(N-1)) if N > 1 else 0
+	if N > 1:
+		D = D/(N*(N-1))
+	else:
+		D = 0
 	
 	# find the indicated alpha
 	if args.value == 'Sh':  # calculate shannon's diversity
-		shannons_alpha(p)
+		result = shannons_alpha(p)
 	elif args.value == 'BP':  # calculate berger-parker's dominance index
-		berger_parkers_alpha(p)
+		result = berger_parkers_alpha(p)
 	elif args.value == 'Si':  # calculate Simpson's alpha 
-		simpsons_alpha(D)
+		result = simpsons_alpha(D)
 	elif args.value == 'ISi':  # calculate Inverse Simpson's alpha 
-		inverse_simpsons_alpha(D)
+		result = inverse_simpsons_alpha(D)
 	elif args.value == 'F':  # calculate fisher's alpha
 		print("Fisher's alpha...loading")
 		global N_f
-		N_f = sum(n)
+		N_f = N
 		global S_f
-		S_f = len(n)
-		fishers_alpha()
+		S_f = S
+		result = fishers_alpha()
 	else:
-		print("Not a supported alpha diversity metric")
+		print("Not a supported alpha")
+		sys.exit(1)
 
 if __name__ == "__main__":
     main()

@@ -144,8 +144,21 @@ def main():
                             if tax_name not in i2counts[num_samples]:
                                 i2counts[num_samples][tax_name] = 0
                             i2counts[num_samples][tax_name] += count
+                elif args.filetype == "bracken":
+                    # Handle bracken format - improved check for taxonomic level
+                    # For bracken files with .G.report, .S.report, etc. in the filename
+                    # the level is included in the filename but the internal level might be different
+                    if args.lvl == "all" or (taxlvl_col < len(l_vals) and 
+                                           (l_vals[taxlvl_col] == args.lvl or 
+                                            l_vals[taxlvl_col][0] == args.lvl)):
+                        tax_id = l_vals[categ_col]
+                        taxonomies[num_samples][tax_id] = l_vals[0]
+                        i2totals[num_samples] += count
+                        if tax_id not in i2counts[num_samples]:
+                            i2counts[num_samples][tax_id] = 0
+                        i2counts[num_samples][tax_id] += count
                 else:
-                    # Handle Bracken and Kraken report formats
+                    # Handle Kraken report formats
                     if args.lvl == "all" or (taxlvl_col < len(l_vals) and l_vals[taxlvl_col][0] == args.lvl):
                         tax_id = l_vals[categ_col]
                         taxonomies[num_samples][tax_id] = l_vals[0]

@@ -100,27 +100,22 @@ workflow {
     
     // Nhóm các báo cáo Bracken theo cấp độ phân loại (cho summary reports)
     BRACKEN.out.reports
-        .map { meta, level, report -> tuple(level, report) }
+        .map { sample_id, level, bracken_report -> tuple(level, bracken_report) }
         .groupTuple()
         .set { grouped_bracken_reports_ch }
     
     // Tạo báo cáo tổng hợp cho từng cấp độ phân loại từ báo cáo Bracken
     GENERATE_SUMMARY(grouped_bracken_reports_ch)
     
-    // Nhóm các báo cáo Kraken2 cho phân tích đa dạng sinh học
-    KRAKEN2.out.report
-        .map { sample_id, kraken_report -> 
-            // Trích xuất cấp độ phân loại từ tên file báo cáo
-            def level = bracken_levels.collect()
-            tuple(level, kraken_report)
-        }
-        .transpose()
+    // Nhóm các báo cáo Bracken cho phân tích đa dạng sinh học
+    BRACKEN.out.reports
+        .map { sample_id, level, bracken_report -> tuple(level, bracken_report) }
         .groupTuple()
-        .set { grouped_kraken_reports_ch }
+        .set { grouped_bracken_reports_ch_for_diversity }
     
-    // Tính toán đa dạng sinh học Alpha từ báo cáo Kraken2
-    ALPHA_DIVERSITY(grouped_kraken_reports_ch)
+    // Tính toán đa dạng sinh học Alpha từ báo cáo Bracken
+    ALPHA_DIVERSITY(grouped_bracken_reports_ch_for_diversity)
     
-    // Tính toán đa dạng sinh học Beta từ báo cáo Kraken2
-    BETA_DIVERSITY(grouped_kraken_reports_ch)
+    // Tính toán đa dạng sinh học Beta từ báo cáo Bracken
+    BETA_DIVERSITY(grouped_bracken_reports_ch_for_diversity)
 }
