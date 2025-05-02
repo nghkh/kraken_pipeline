@@ -6,6 +6,7 @@ include { BRACKEN } from './modules/local/bracken/main'
 include { KRAKEN2KRONA; KRONA_PLOT } from './modules/local/krona/main'
 include { GENERATE_SUMMARY; ALPHA_DIVERSITY; BETA_DIVERSITY } from './modules/local/diversity/main'
 include { ARGS_OAP } from './modules/local/args_oap/main' // Import ARGs_OAP module
+include { FASTP } from './modules/local/fastp/main' // Import FASTP module
 
 // Define parameters
 params.reads_dir = "$baseDir/reads"  // Thư mục chứa tất cả raw reads
@@ -25,6 +26,7 @@ params.container_kraken2 = 'quay.io/biocontainers/kraken2:2.1.2--pl5321h9f5acd7_
 params.container_bracken = 'quay.io/biocontainers/bracken:2.7--py39hc16433a_0'
 params.container_krona = 'quay.io/biocontainers/krona:2.8--pl5262hdfd78af_2'
 params.container_args_oap = 'quay.io/biocontainers/args_oap:3.2.4--pyhdfd78af_0' // Docker container for ARGs_OAP
+params.container_fastp = 'quay.io/biocontainers/fastp:0.24.1--heae3180_0' // Docker container for FASTP
 
 // Kiểm tra tham số outdir có được cung cấp hay không
 if (params.outdir == null) {
@@ -55,6 +57,7 @@ log.info """\
          Bracken container  : ${params.container_bracken}
          Krona container    : ${params.container_krona}
          ARGs_OAP container : ${params.container_args_oap}
+         FASTP container    : ${params.container_fastp}
          """
          .stripIndent()
 
@@ -82,8 +85,11 @@ Channel
 
 // Workflow definition
 workflow {
-    // Run Kraken2
-    KRAKEN2(read_pairs_ch)
+    // Run FASTP for quality control and trimming
+    FASTP(read_pairs_ch)
+    
+    // Run Kraken2 on the trimmed reads
+    KRAKEN2(FASTP.out.trimmed_reads)
     
     // Tạo channel với tất cả các cấp độ phân loại
     bracken_ch = KRAKEN2.out.report.combine(Channel.fromList(bracken_levels))
@@ -126,6 +132,6 @@ workflow {
     
     // Run ARGs_OAP if enabled
     if (params.run_args_oap) {
-        ARGS_OAP(read_pairs_ch)
+        ARGS_OAP(FASTP.out.trimmed_reads)
     }
 }
