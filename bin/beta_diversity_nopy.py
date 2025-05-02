@@ -1,13 +1,18 @@
 #!/usr/bin/env python
 ################################################################
-# beta_diversity.py - Calculates Bray-Curtis dissimilarity metrics
-# between multiple community samples
+# beta_diversity_nopy.py - Numpy-free implementation of Bray-Curtis calculation
+# Calculates Bray-Curtis dissimilarity metrics between multiple community samples
 ################################################################
 import os, sys, argparse
 import operator
 from time import gmtime
 from time import strftime
-import numpy as np
+
+# Define numpy-like functions for matrix operations
+def zeros(shape):
+    """Create a matrix of zeros with the given shape"""
+    rows, cols = shape
+    return [[0.0 for _ in range(cols)] for _ in range(rows)]
 
 ####################################################################
 # Main method
@@ -144,21 +149,8 @@ def main():
                             if tax_name not in i2counts[num_samples]:
                                 i2counts[num_samples][tax_name] = 0
                             i2counts[num_samples][tax_name] += count
-                elif args.filetype == "bracken":
-                    # Handle bracken format - improved check for taxonomic level
-                    # For bracken files with .G.report, .S.report, etc. in the filename
-                    # the level is included in the filename but the internal level might be different
-                    if args.lvl == "all" or (taxlvl_col < len(l_vals) and 
-                                           (l_vals[taxlvl_col] == args.lvl or 
-                                            l_vals[taxlvl_col][0] == args.lvl)):
-                        tax_id = l_vals[categ_col]
-                        taxonomies[num_samples][tax_id] = l_vals[0]
-                        i2totals[num_samples] += count
-                        if tax_id not in i2counts[num_samples]:
-                            i2counts[num_samples][tax_id] = 0
-                        i2counts[num_samples][tax_id] += count
                 else:
-                    # Handle Kraken report formats
+                    # Handle Bracken and Kraken report formats
                     if args.lvl == "all" or (taxlvl_col < len(l_vals) and l_vals[taxlvl_col][0] == args.lvl):
                         tax_id = l_vals[categ_col]
                         taxonomies[num_samples][tax_id] = l_vals[0]
@@ -187,7 +179,8 @@ def main():
     #################################################
     # STEP 2: CALCULATE BRAY-CURTIS DISSIMILARITIES
     
-    bc = np.zeros((num_samples, num_samples))
+    # Create a matrix without numpy
+    bc = zeros((num_samples, num_samples))
     for i in range(0, num_samples):
         i_tot = i2totals[i]
         for j in range(i+1, num_samples):

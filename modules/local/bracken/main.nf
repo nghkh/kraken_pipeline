@@ -3,7 +3,6 @@ process BRACKEN {
     tag "$sample_id - $level"
     publishDir "${params.outdir}/$sample_id/bracken", mode: 'copy'
     
-    // Thêm container cho Bracken
     container params.container_bracken
     
     input:
@@ -11,16 +10,13 @@ process BRACKEN {
     
     output:
     tuple val(sample_id), val(level), path("${sample_id}.bracken.${level}.report"), emit: reports
-    tuple val(sample_id), val(level), path("${sample_id}.bracken.${level}.output"), emit: outputs
     
     script:
     """
-    bracken -d ${params.krakendb} \
-        -i ${kraken_report} \
-        -o ${sample_id}.bracken.${level}.output \
-        -w ${sample_id}.bracken.${level}.report \
-        -r ${params.bracken_length} \
-        -l ${level} \
-        -t ${params.bracken_threshold}
+    # Run Bracken with the output file name
+    bracken -d ${params.krakendb} -i ${kraken_report} -o ${sample_id}.bracken.${level}.output -r ${params.bracken_length} -l ${level} -t ${params.bracken_threshold}
+    
+    # Rename the output file to the expected format for Nextflow
+    mv ${sample_id}.bracken.${level}.output ${sample_id}.bracken.${level}.report
     """
 }

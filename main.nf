@@ -3,8 +3,9 @@
 // Import modules
 include { KRAKEN2 } from './modules/local/kraken2/main'
 include { BRACKEN } from './modules/local/bracken/main'
-include { KRAKEN2KRONA } from './modules/local/krona/main'
+include { KRAKEN2KRONA; KRONA_PLOT } from './modules/local/krona/main'
 include { GENERATE_SUMMARY; ALPHA_DIVERSITY; BETA_DIVERSITY } from './modules/local/diversity/main'
+include { ARGS_OAP } from './modules/local/args_oap/main' // Import ARGs_OAP module
 
 // Define parameters
 params.reads_dir = "$baseDir/reads"  // Thư mục chứa tất cả raw reads
@@ -16,11 +17,14 @@ params.bracken_threshold = 10
 params.bracken_length = 150
 params.bracken_level = ["P","C","O","F","G","S"] // Danh sách các cấp độ phân loại
 params.read_pattern = "*_{1,2}*.{fq,fastq}.gz"  // Pattern mở rộng để tìm nhiều kiểu tên file hơn
+params.run_args_oap = true  // Flag to enable/disable ARGs_OAP analysis
 
 // Thêm tham số Docker
 params.enable_docker = true  // Mặc định bật Docker
 params.container_kraken2 = 'quay.io/biocontainers/kraken2:2.1.2--pl5321h9f5acd7_2'
 params.container_bracken = 'quay.io/biocontainers/bracken:2.7--py39hc16433a_0'
+params.container_krona = 'quay.io/biocontainers/krona:2.8--pl5262hdfd78af_2'
+params.container_args_oap = 'quay.io/biocontainers/args_oap:3.2.4--pyhdfd78af_0' // Docker container for ARGs_OAP
 
 // Kiểm tra tham số outdir có được cung cấp hay không
 if (params.outdir == null) {
@@ -44,10 +48,13 @@ log.info """\
          Bracken threshold  : ${params.bracken_threshold}
          Bracken read length: ${params.bracken_length}
          Bracken tax levels : ${bracken_levels.join(', ')}
+         ARGs_OAP enabled   : ${params.run_args_oap}
          Output directory   : ${params.outdir}
          Using Docker       : ${params.enable_docker}
          Kraken2 container  : ${params.container_kraken2}
          Bracken container  : ${params.container_bracken}
+         Krona container    : ${params.container_krona}
+         ARGs_OAP container : ${params.container_args_oap}
          """
          .stripIndent()
 
@@ -93,18 +100,32 @@ workflow {
         .set { kraken_reports_ch }
     KRAKEN2KRONA(kraken_reports_ch)
     
-    // Nhóm các báo cáo theo cấp độ phân loại
+    // Tạo HTML Krona charts từ text files
+    KRONA_PLOT(KRAKEN2KRONA.out.krona_text)
+    
+    // Nhóm các báo cáo Bracken theo cấp độ phân loại (cho summary reports)
     BRACKEN.out.reports
-        .map { sample_id, level, report -> tuple(level, report) }
+        .map { sample_id, level, bracken_report -> tuple(level, bracken_report) }
         .groupTuple()
-        .set { grouped_reports_ch }
+        .set { grouped_bracken_reports_ch }
     
-    // Tạo báo cáo tổng hợp cho từng cấp độ phân loại
-    GENERATE_SUMMARY(grouped_reports_ch)
+    // Tạo báo cáo tổng hợp cho từng cấp độ phân loại từ báo cáo Bracken
+    GENERATE_SUMMARY(grouped_bracken_reports_ch)
     
-    // Tính toán đa dạng sinh học Alpha
-    ALPHA_DIVERSITY(grouped_reports_ch)
+    // Nhóm các báo cáo Bracken cho phân tích đa dạng sinh học
+    BRACKEN.out.reports
+        .map { sample_id, level, bracken_report -> tuple(level, bracken_report) }
+        .groupTuple()
+        .set { grouped_bracken_reports_ch_for_diversity }
     
-    // Tính toán đa dạng sinh học Beta
-    BETA_DIVERSITY(grouped_reports_ch)
+    // Tính toán đa dạng sinh học Alpha từ báo cáo Bracken
+    ALPHA_DIVERSITY(grouped_bracken_reports_ch_for_diversity)
+    
+    // Tính toán đa dạng sinh học Beta từ báo cáo Bracken
+    BETA_DIVERSITY(grouped_bracken_reports_ch_for_diversity)
+    
+    // Run ARGs_OAP if enabled
+    if (params.run_args_oap) {
+        ARGS_OAP(read_pairs_ch)
+    }
 }

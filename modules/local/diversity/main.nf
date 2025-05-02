@@ -54,6 +54,8 @@ process GENERATE_SUMMARY {
 process ALPHA_DIVERSITY {
     tag "$level"
     publishDir "${params.outdir}/diversity/alpha", mode: 'copy'
+    errorStrategy 'retry'
+    maxRetries 3
     
     container params.container_bracken
     
@@ -61,39 +63,47 @@ process ALPHA_DIVERSITY {
     tuple val(level), path(bracken_reports)
     
     output:
-    path "alpha_diversity_${level}.tsv"
+    path "alpha_diversity_${level}.txt"
     
     script:
     """
     # Create header for output file
-    echo -e "Sample\tTaxonomic_Level\tShannon\tBerger_Parker\tSimpson\tInverse_Simpson\tFisher" > alpha_diversity_${level}.tsv
+    echo -e "Sample\tTaxonomic_Level\tShannon\tBerger_Parker\tSimpson\tInverse_Simpson\tFisher" > alpha_diversity_${level}.txt
     
     # Process each Bracken report
     for report in ${bracken_reports}; do
         sample=\$(basename \$report | cut -d. -f1)
+        echo -n "\${sample}\t${level}\t" >> alpha_diversity_${level}.txt
         
         # Calculate Shannon diversity
-        shannon=\$(python ${baseDir}/bin/alpha_diversity.py -f \$report -a Sh)
-        shannon_value=\$(echo \$shannon | grep -oP "Shannon's diversity: \\K[0-9.]+" || echo "NA")
+        python3 ${baseDir}/bin/alpha_diversity.py -f \$report -a Sh > shannon_output.txt
+        shannon=\$(cat shannon_output.txt | grep "Shannon's diversity:" | awk '{print \$NF}')
+        if [[ -z "\$shannon" ]]; then shannon="NA"; fi
+        echo -n "\${shannon}\t" >> alpha_diversity_${level}.txt
         
         # Calculate Berger-Parker diversity
-        bp=\$(python ${baseDir}/bin/alpha_diversity.py -f \$report -a BP)
-        bp_value=\$(echo \$bp | grep -oP "Berger-parker's diversity: \\K[0-9.]+" || echo "NA")
+        python3 ${baseDir}/bin/alpha_diversity.py -f \$report -a BP > bp_output.txt
+        bp=\$(cat bp_output.txt | grep "Berger-parker's diversity:" | awk '{print \$NF}')
+        if [[ -z "\$bp" ]]; then bp="NA"; fi
+        echo -n "\${bp}\t" >> alpha_diversity_${level}.txt
         
         # Calculate Simpson diversity
-        simpson=\$(python ${baseDir}/bin/alpha_diversity.py -f \$report -a Si)
-        simpson_value=\$(echo \$simpson | grep -oP "Simpson's index of diversity: \\K[0-9.]+" || echo "NA")
+        python3 ${baseDir}/bin/alpha_diversity.py -f \$report -a Si > simpson_output.txt
+        simpson=\$(cat simpson_output.txt | grep "Simpson's index of diversity:" | awk '{print \$NF}')
+        if [[ -z "\$simpson" ]]; then simpson="NA"; fi
+        echo -n "\${simpson}\t" >> alpha_diversity_${level}.txt
         
         # Calculate Inverse Simpson diversity
-        inv_simpson=\$(python ${baseDir}/bin/alpha_diversity.py -f \$report -a ISi)
-        inv_simpson_value=\$(echo \$inv_simpson | grep -oP "Simpson's Reciprocal Index: \\K[0-9.]+" || echo "NA")
+        python3 ${baseDir}/bin/alpha_diversity.py -f \$report -a ISi > invsimpson_output.txt
+        inv_simpson=\$(cat invsimpson_output.txt | grep "Simpson's Reciprocal Index:" | awk '{print \$NF}')
+        if [[ -z "\$inv_simpson" ]]; then inv_simpson="NA"; fi
+        echo -n "\${inv_simpson}\t" >> alpha_diversity_${level}.txt
         
-        # Calculate Fisher's alpha (may take longer)
-        fisher=\$(python ${baseDir}/bin/alpha_diversity.py -f \$report -a F || echo "Fisher's alpha...loading NA")
-        fisher_value=\$(echo \$fisher | grep -oP "Fisher's index: \\K[0-9.]+" || echo "NA")
-        
-        # Add results to output file
-        echo -e "\${sample}\t${level}\t\${shannon_value}\t\${bp_value}\t\${simpson_value}\t\${inv_simpson_value}\t\${fisher_value}" >> alpha_diversity_${level}.tsv
+        # Calculate Fisher's alpha
+        python3 ${baseDir}/bin/alpha_diversity.py -f \$report -a F > fisher_output.txt
+        fisher=\$(cat fisher_output.txt | grep "Fisher's index:" | awk '{print \$NF}')
+        if [[ -z "\$fisher" ]]; then fisher="NA"; fi
+        echo "\${fisher}" >> alpha_diversity_${level}.txt
     done
     """
 }
@@ -109,11 +119,17 @@ process BETA_DIVERSITY {
     tuple val(level), path(bracken_reports)
     
     output:
-    path "beta_diversity_${level}.tsv"
+    path "beta_diversity_${level}.txt"
     
     script:
+    bracken_files = bracken_reports.join(' ')
     """
-    # Run beta diversity analysis
-    python ${baseDir}/bin/beta_diversity.py --input ${bracken_reports} --type bracken --level ${level} > beta_diversity_${level}.tsv
+    # Ensure numpy is installed
+    pip install numpy scipy
+    
+    # Run beta diversity analysis using Bracken reports with Python script directly
+    # Pass each bracken file individually to the script with -i flag
+    # Specify the taxonomy level parameter to match the input level
+    python3 ${baseDir}/bin/beta_diversity.py -i ${bracken_files} --type bracken --level ${level} > beta_diversity_${level}.txt
     """
 }

@@ -1,5 +1,6 @@
 # Nextflow specific files
 .nextflow.log
+.nextflow.log.*
 .nextflow/
 work/
 
