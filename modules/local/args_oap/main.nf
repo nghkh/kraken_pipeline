@@ -16,6 +16,9 @@ process ARGS_OAP {
     path "${sample_id}_args_oap_results/summary.txt", emit: summary
     path "${sample_id}_args_oap_summary.log", emit: log
     
+    when:
+    task.ext.when == null || task.ext.when
+    
     script:
     def args = task.ext.args ?: ''
     def prefix = sample_id
@@ -25,8 +28,9 @@ process ARGS_OAP {
     mkdir -p ${prefix}_input
     mkdir -p ${prefix}_args_oap_results
     
-    # Copy input files to input directory
-    cp ${reads.join(' ')} ${prefix}_input/
+    # Copy input files to input directory but rename them to .fq.gz format that ARGs-OAP expects
+    cp ${reads[0]} ${prefix}_input/${prefix}_1.fq.gz
+    cp ${reads[1]} ${prefix}_input/${prefix}_2.fq.gz
     
     # Run ARGs-OAP stage one
     args_oap stage_one -i ${prefix}_input -o ${prefix}_args_oap_results -f fq.gz -t ${task.cpus}
