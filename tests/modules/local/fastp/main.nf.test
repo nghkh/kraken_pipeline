@@ -1,0 +1,47 @@
+nextflow_process {
+
+    name "Test Process FASTP"
+    script "modules/local/fastp/main.nf"
+    process "FASTP"
+
+    test("Should run with paired-end reads") {
+        when {
+            params {
+                outdir = "test-results"
+                container_fastp = "quay.io/biocontainers/fastp:0.24.1--heae3180_0"
+            }
+            
+            process {
+                """
+                input[0] = [ id: "test_sample" ]
+                input[1] = [ file("test-data/reads/test_sample_1.fastq.gz"), file("test-data/reads/test_sample_2.fastq.gz") ]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            assert process.out.trimmed_reads != null
+            assert process.out.html_report != null
+            assert process.out.json_report != null
+            assert process.out.log_file != null
+            assert process.out.versions != null
+            
+            assert snapshot(process.out.versions).match()
+            
+            // Check file existence (using paths)
+            with(process.out.trimmed_reads[1]) {
+                assert path(it[0]).getName().endsWith('.fastp.fastq.gz')
+                assert path(it[1]).getName().endsWith('.fastp.fastq.gz')
+            }
+            
+            with(process.out.html_report) {
+                assert path(it).getName().endsWith('.fastp.html')
+            }
+            
+            with(process.out.json_report) {
+                assert path(it).getName().endsWith('.fastp.json')
+            }
+        }
+    }
+}

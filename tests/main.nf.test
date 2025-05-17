@@ -1,0 +1,63 @@
+nextflow_pipeline {
+
+    name "Test Workflow main.nf"
+    script "main.nf"
+
+    test("Should run without failures with minimal dataset") {
+
+        when {
+            params {
+                reads_dir = "test-data/reads"
+                outdir = "test-results"
+                krakendb = "test-data/minikraken-db" 
+                kraken_threads = 2
+                bracken_threads = 2
+                bracken_threshold = 10
+                bracken_length = 150
+                bracken_level = ["S","G"]  // Just test species and genus levels
+                phix_fasta = "assets/GCA_002596845.1_ASM259684v1_genomic.fna.gz"
+            }
+        }
+
+        then {
+            assert workflow.success
+            assert workflow.trace.succeeded().size() > 0
+            
+            // Check if output directories exist
+            assert path("${params.outdir}/fastp").exists()
+            assert path("${params.outdir}/fastqc").exists()
+            assert path("${params.outdir}/kraken2").exists()
+            assert path("${params.outdir}/bracken").exists()
+        }
+    }
+
+    test("Should handle non-existent reads directory gracefully") {
+        when {
+            params {
+                reads_dir = "non-existent-directory"
+                outdir = "test-results"
+                krakendb = "test-data/minikraken-db"
+            }
+        }
+
+        then {
+            assert workflow.exitStatus == 1
+            assert workflow.stdout.contains("Reads directory not found")
+        }
+    }
+
+    test("Should handle non-existent Kraken database gracefully") {
+        when {
+            params {
+                reads_dir = "test-data/reads"
+                outdir = "test-results"
+                krakendb = "non-existent-database"
+            }
+        }
+
+        then {
+            assert workflow.exitStatus == 1
+            assert workflow.stdout.contains("Kraken2 database not found")
+        }
+    }
+}

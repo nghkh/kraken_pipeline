@@ -1,0 +1,18 @@
+#!/usr/bin/env nextflow
+
+nextflow.enable.dsl = 2
+
+import groovy.json.JsonSlurper
+
+include { MEGAHIT } from '../../../../modules/local/megahit/main.nf'
+
+workflow test_megahit {
+    input = [
+        [ id:'test_sample' ], // meta map
+        [ file('/home/nghkh/Documents/kraken/tests/test_data/test_1.fastq.gz'), 
+          file('/home/nghkh/Documents/kraken/tests/test_data/test_2.fastq.gz') ]
+    ]
+    threads = 2 // Sử dụng ít threads khi test
+
+    MEGAHIT ( input, threads )
+}

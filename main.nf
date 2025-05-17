@@ -9,6 +9,7 @@ include { ARGS_OAP } from './modules/local/args_oap/main' // Import ARGs_OAP mod
 include { FASTP } from './modules/local/fastp/main' // Import FASTP module
 include { FASTQC as FASTQC_RAW; FASTQC as FASTQC_TRIMMED; FASTQC as FASTQC_PHIX_REMOVED } from './modules/local/fastqc/main'
 include { BOWTIE2_BUILD_PHIX; BOWTIE2_REMOVAL_PHIX } from './modules/local/bowtie2/main'
+include { MEGAHIT } from './modules/local/megahit/main' // Import MEGAHIT module
 
 // Define parameters
 params.reads_dir = "$baseDir/reads"  // Thư mục chứa tất cả raw reads
@@ -31,11 +32,15 @@ params.container_args_oap = 'quay.io/biocontainers/args_oap:3.2.4--pyhdfd78af_0'
 params.container_fastp = 'quay.io/biocontainers/fastp:0.24.1--heae3180_0' // Docker container for FASTP
 params.container_fastqc = 'quay.io/biocontainers/fastqc:0.12.1--hdfd78af_0' // Docker container for FASTQC
 params.container_bowtie2 = 'quay.io/biocontainers/bowtie2:2.5.4--he96a11b_5' // Docker container for Bowtie2
+params.container_megahit = 'quay.io/biocontainers/megahit:1.2.9--h2e03b76_1' // Docker container for MEGAHIT
 
 // Thêm tham số cho Bowtie2 và PhiX removal
 params.phix_fasta = "$baseDir/assets/GCA_002596845.1_ASM259684v1_genomic.fna.gz" // Đường dẫn đến file FASTA của PhiX
 params.bowtie2_build_threads = params.kraken_threads ?: 8 // Số luồng cho bowtie2-build
 params.bowtie2_align_threads = params.kraken_threads ?: 8 // Số luồng cho bowtie2 alignment
+
+// Thêm tham số cho MEGAHIT
+params.megahit_threads = 8 // Số luồng cho MEGAHIT
 
 // Workflow definition
 workflow {
@@ -75,6 +80,8 @@ workflow {
              Bowtie2 build threads: ${params.bowtie2_build_threads}
              Bowtie2 align threads: ${params.bowtie2_align_threads}
              Bowtie2 container  : ${params.container_bowtie2}
+             MEGAHIT threads    : ${params.megahit_threads}
+             MEGAHIT container  : ${params.container_megahit}
              """
              .stripIndent()
 
@@ -126,6 +133,9 @@ workflow {
 
     // Run FastQC on PhiX-filtered reads
     FASTQC_PHIX_REMOVED(BOWTIE2_REMOVAL_PHIX.out.reads)
+    
+    // Run MEGAHIT for metagenomic assembly
+    MEGAHIT(BOWTIE2_REMOVAL_PHIX.out.reads, params.megahit_threads)
 
     // Run Kraken2 on the trimmed and PhiX-filtered reads
     BOWTIE2_REMOVAL_PHIX.out.reads
